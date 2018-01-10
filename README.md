@@ -13,26 +13,56 @@ npm install vue-native-websocket --save
 ```
 
 ## Usage
+
 #### Configuration
+
 Automatic socket connection from an URL string
+
 ``` js
 import VueNativeSock from 'vue-native-websocket'
 Vue.use(VueNativeSock, 'ws://localhost:9090')
 ```
 
 Enable Vuex integration, where `'./store'` is your local apps store:
+
 ``` js
 import store from './store'
-Vue.use(VueNativeSock, 'ws://localhost:9090', store)
+Vue.use(VueNativeSock, 'ws://localhost:9090', { store: store })
 ```
 
+Set sub-protocol, this is optional option and default is empty string.
+
+``` js
+import VueNativeSock from 'vue-native-websocket'
+Vue.use(VueNativeSock, 'ws://localhost:9090', { protocol: 'my-protocol' })
+```
+
+
 Optionally enable JSON message passing:
+
+``` js
+Vue.use(VueNativeSock, 'ws://localhost:9090', { format: 'json' })
+```
+
+JSON message passing with a store:
+
 ``` js
 import store from './store'
-Vue.use(VueNativeSock, 'ws://localhost:9090', store, {format: 'json'})
+Vue.use(VueNativeSock, 'ws://localhost:9090', { store: store, format: 'json' })
+```
+
+Enable ws reconnect automatically:
+
+``` js
+Vue.use(VueNativeSock, 'ws://localhost:9090', { 
+  reconnection: true, // (Boolean) whether to reconnect automatically (false)
+  reconnectionAttempts: 5, // (Number) number of reconnection attempts before giving up (Infinity),
+  reconnectionDelay: 3000, // (Number) how long to initially wait before attempting a new (1000)
+})
 ```
 
 #### On Vuejs instance usage
+
 ``` js
 var vm = new Vue({
   methods: {
@@ -47,13 +77,17 @@ var vm = new Vue({
 ```
 
 #### Dynamic socket event listeners
-Create a new listener
+
+Create a new listener, for example:
+
 ``` js
-this.$options.sockets.event_name = (data) => console.log(data)
+this.$options.sockets.onmessage = (data) => console.log(data)
 ```
+
 Remove existing listener
+
 ``` js
-delete this.$options.sockets.event_name
+delete this.$options.sockets.onmessage
 ```
 
 #### Vuex Store integration
@@ -78,6 +112,8 @@ Update state in the open, close and error callbacks. You can also check the sock
 
 Handle all the data in the `SOCKET_ONMESSAGE` mutation.
 
+Reconect events will commit mutations `SOCKET_RECONNECT` and `SOCKET_RECONNECT_ERROR`.
+
 ``` js
 import Vue from 'vue'
 import Vuex from 'vuex'
@@ -89,6 +125,7 @@ export default new Vuex.Store({
     socket: {
       isConnected: false,
       message: '',
+      reconnectError: false,
     }
   },
   mutations:{
@@ -104,7 +141,14 @@ export default new Vuex.Store({
     // default handler called for all methods
     SOCKET_ONMESSAGE (state, message)  {
       state.message = message
-    }
+    },
+    // mutations for reconnect methods
+    [ws.WS_RECONNECT](state, count) {
+      console.info(state, count)
+    },
+    [ws.WS_RECONNECT_ERROR](state) {
+      state.socket.reconnectError = true;
+    },
   }
 })
 ```
@@ -121,7 +165,15 @@ If there is a `.namespace` on the data, the message is sent to this `namespaced:
 
 If there is a `.mutation` value in the response data, the corresponding mutation is called with the name `SOCKET_[mutation value]`
 
-If there is an `.action` value in the response data, the corresponding action is called with the name `SOCKET_[action value]`
+If there is an `.action` value in the response data ie. `action: 'customerAdded'`, the corresponding action is called by name:
+
+``` js
+actions: {
+    customerAdded (context) {
+      console.log('action received: customerAdded')
+    }
+  }
+```
 
 Use the `.sendObj({some: data})` method on the `$socket` object to send stringified json messages.
 

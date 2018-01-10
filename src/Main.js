@@ -3,25 +3,26 @@ import Emitter from './Emitter'
 
 export default {
 
-  install (Vue, connection, store, opts = {}) {
+  install (Vue, connection, opts = {}) {
     if (!connection) { throw new Error('[vue-native-socket] cannot locate connection') }
 
-    let observer = new Observer(connection, store, opts)
+    let observer = new Observer(connection, opts)
 
     Vue.prototype.$socket = observer.WebSocket
 
     Vue.mixin({
       created () {
+        let vm = this
         let sockets = this.$options['sockets']
 
         this.$options.sockets = new Proxy({}, {
           set (target, key, value) {
-            Emitter.addListener(key, value, this)
+            Emitter.addListener(key, value, vm)
             target[key] = value
             return true
           },
           deleteProperty (target, key) {
-            Emitter.removeListener(key, this.$options.sockets[key], this)
+            Emitter.removeListener(key, vm.$options.sockets[key], vm)
             delete target.key
             return true
           }
@@ -35,6 +36,7 @@ export default {
       },
       beforeDestroy () {
         let sockets = this.$options['sockets']
+        clearTimeout(observer.reconnectTimeoutId)
 
         if (sockets) {
           Object.keys(sockets).forEach((key) => {
